@@ -1,0 +1,149 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LLM Streaming Chat</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 750px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+        }
+
+        button {
+            padding: 12px 20px;
+            margin: 12px 0;
+            cursor: pointer;
+        }
+
+        #output {
+            background: #f1f1f1;
+            padding: 20px;
+            min-height: 180px;
+            white-space: pre-wrap;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>LLM Streaming Chat</h1>
+
+    <textarea id="prompt">Explain machine learning.</textarea>
+
+    <br>
+
+    <button id="send">Start Streaming</button>
+
+    <p id="status">Ready</p>
+
+    <div id="output"></div>
+
+    <script>
+
+        const button = document.getElementById("send");
+        const output = document.getElementById("output");
+        const status = document.getElementById("status");
+
+        button.addEventListener("click", async () => {
+
+            output.textContent = "";
+            status.textContent = "Connecting...";
+            button.disabled = true;
+
+            try {
+
+                const response = await fetch("/chat/stream", {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        prompt: document.getElementById("prompt").value,
+                        model: "openai/gpt-4o-mini",
+                        max_tokens: 300
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(JSON.stringify(error.detail));
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                let buffer = "";
+
+                status.textContent = "Streaming...";
+
+                while (true) {
+
+                    const { value, done } = await reader.read();
+
+                    if (done) break;
+
+                    buffer += decoder.decode(value, {
+                        stream: true
+                    });
+
+                    const events = buffer.split("\n\n");
+                    buffer = events.pop();
+
+                    for (const event of events) {
+
+                        const line = event.split("\n").find(
+                            item => item.startsWith("data: ")
+                        );
+
+                        if (!line) continue;
+
+                        const data = line.slice(6);
+
+                        if (data === "[DONE]") {
+                            status.textContent = "Completed!";
+                            continue;
+                        }
+
+                        try {
+                            const parsed = JSON.parse(data);
+
+                            if (parsed.text) {
+                                output.textContent += parsed.text;
+                            }
+                        } catch {
+                            // Ignore invalid or non-text event data.
+                        }
+                    }
+                }
+
+                status.textContent = "Stream closed.";
+
+            } catch (error) {
+
+                status.textContent = "Error: " + error.message;
+
+            } finally {
+
+                button.disabled = false;
+
+            }
+
+        });
+
+    </script>
+
+</body>
+</html>

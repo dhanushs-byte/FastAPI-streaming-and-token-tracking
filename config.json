@@ -1,0 +1,15 @@
+
+{
+    "default_model": "openai/gpt-4o-mini",
+    "max_output_tokens": 2048,
+    "daily_budget_usd": 1.0,
+    "models": {
+        "openai/gpt-4o-mini": {
+            "context_limit": 128000,
+            "price_per_1m_tokens_usd": {
+                "input": 0.15,
+                "output": 0.60
+            }
+        }
+    }
+}
